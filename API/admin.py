@@ -3,7 +3,7 @@ from .models import Airline, Aircraft, Airport, Runway, Flight
 
 @admin.register(Airline)
 class AirlineAdmin(admin.ModelAdmin):
-    list_display = ('name', 'iata_code', 'country')
+    list_display = ('name', 'iata_code', 'icao_code', 'country')
 
 @admin.register(Aircraft)
 class AircraftAdmin(admin.ModelAdmin):
