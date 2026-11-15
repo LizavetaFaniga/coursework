@@ -1,7 +1,7 @@
 <template>
   <div class="layout">
     <aside class="sidebar">
-      <div class="logo">AirPort</div>
+      <div class="logo">AirPort LED</div>
       <nav class="menu">
         <router-link to="/flights">Табло рейсов</router-link>
         <router-link to="/airlines">Авиакомпании</router-link>
@@ -14,15 +14,15 @@
 
     <main class="main-content">
       <header class="topbar">
-        <div class="topbar-title">Управление рейсами</div>
+        <div class="topbar-title">Управление аэропортом Санкт-Петербург</div>
         <div class="user-profile"><div class="avatar">A</div><span>Администратор</span></div>
       </header>
 
       <div class="content">
         <div class="header-action">
           <div>
-            <h1 class="page-title">Онлайн-табло</h1>
-            <p class="subtitle">Все актуальные рейсы аэропорта</p>
+            <h1 class="page-title">Онлайн-табло (Пулково)</h1>
+            <p class="subtitle">Все актуальные рейсы аэропорта Санкт-Петербург</p>
           </div>
           <button class="add-btn" @click="openCreateModal">+ Добавить рейс</button>
         </div>
@@ -90,15 +90,21 @@
           <table class="board-table">
             <thead>
               <tr>
-                <th>Время</th><th>Рейс</th><th>Маршрут</th><th>Авиакомпания</th><th>Гейт</th><th>Статус</th><th style="text-align: right;">Действия</th>
+                <th>Время</th><th>Рейс</th><th>Маршрут</th><th>Авиакомпания</th><th>Самолет</th><th>Гейт</th><th>Статус</th><th style="text-align: right;">Действия</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="flight in flights" :key="flight.id">
                 <td><span class="time-badge">{{ formatTime(flight.departure_time) }}</span></td>
-                <td><b>{{ flight.flight_number }}</b></td>
+                <td>
+                  <router-link :to="`/flights/${flight.id}`" class="flight-link">
+                    {{ flight.flight_number }}
+                  </router-link>
+                </td>
                 <td>{{ flight.origin_city }} <span class="arrow">➔</span> {{ flight.destination_city }}</td>
                 <td>{{ flight.airline_name }}</td>
+                <!-- ВЫВОДИМ ТОЛЬКО БОРТОВОЙ НОМЕР -->
+                <td>{{ flight.aircraft_tail }}</td>
                 <td><span class="gate-badge">{{ flight.gate || '-' }}</span></td>
                 <td><span class="status" :class="flight.status">{{ translateStatus(flight.status) }}</span></td>
                 <td class="actions-cell">
@@ -126,46 +132,53 @@
         
         <form @submit.prevent="saveFlight" class="flight-form">
           <div class="form-grid">
-            <div class="form-group"><label>Номер рейса</label><input type="text" v-model="form.flight_number" required /></div>
-            <div class="form-group"><label>Гейт</label><input type="text" v-model="form.gate" /></div>
+            <div class="form-group"><label>Номер рейса</label><input type="text" v-model="form.flight_number" required placeholder="SU1234" /></div>
+            <div class="form-group"><label>Гейт</label><input type="text" v-model="form.gate" placeholder="A1" /></div>
 
             <div class="form-group"><label>Авиакомпания</label><select v-model="form.airline" required><option value="" disabled>Выберите...</option><option v-for="a in lookups.airlines" :key="a.id" :value="a.id">{{ a.name }}</option></select></div>
             <div class="form-group"><label>Самолет</label><select v-model="form.aircraft" required><option value="" disabled>Выберите...</option><option v-for="ac in lookups.aircrafts" :key="ac.id" :value="ac.id">{{ ac.model }} ({{ ac.tail_number }})</option></select></div>
 
-            <div class="form-group"><label>Откуда</label><select v-model="form.origin" required><option value="" disabled>Выберите...</option><option v-for="ap in lookups.airports" :key="ap.id" :value="ap.id">{{ ap.city }} ({{ ap.iata_code }})</option></select></div>
-            <div class="form-group"><label>Куда</label><select v-model="form.destination" required><option value="" disabled>Выберите...</option><option v-for="ap in lookups.airports" :key="ap.id" :value="ap.id">{{ ap.city }} ({{ ap.iata_code }})</option></select></div>
+            <div class="form-group full-width" style="margin-bottom: 10px;">
+              <label>Тип рейса</label>
+              <div style="display: flex; gap: 20px; margin-top: 5px;">
+                <label style="text-transform: none; font-weight: normal; font-size: 14px; cursor: pointer;">
+                  <input type="radio" v-model="form.flight_type" value="departure" /> Вылет из Пулково
+                </label>
+                <label style="text-transform: none; font-weight: normal; font-size: 14px; cursor: pointer;">
+                  <input type="radio" v-model="form.flight_type" value="arrival" /> Прилет в Пулково
+                </label>
+              </div>
+            </div>
 
-            <div class="form-group"><label>Время вылета</label><input type="datetime-local" v-model="form.departure_time" required /></div>
-            <div class="form-group"><label>Время прилета</label><input type="datetime-local" v-model="form.arrival_time" required /></div>
-
-            <!-- Полоса вылета -->
-            <div class="form-group">
-              <label>Полоса вылета</label>
-              <select v-model="form.departure_runway">
-                <option :value="null">Не назначена</option>
-                <option 
-                  v-for="r in lookups.runways.filter(rw => rw.airport === form.origin)" 
-                  :key="r.id" :value="r.id"
-                  :disabled="r.status_text !== 'СВОБОДНА'" 
-                  :style="r.status_text !== 'СВОБОДНА' ? 'color: #c62828;' : 'color: #1e293b;'"
-                >
-                  {{ r.name }} [{{ r.status_text }}]
+            <div class="form-group full-width">
+              <label>{{ form.flight_type === 'departure' ? 'Куда летит (Аэропорт)' : 'Откуда летит (Аэропорт)' }}</label>
+              <select v-model="form.other_airport" required>
+                <option value="" disabled>Выберите...</option>
+                <option v-for="ap in lookups.airports.filter(a => a.id !== ledId)" :key="ap.id" :value="ap.id">
+                  {{ ap.city }} ({{ ap.iata_code }})
                 </option>
               </select>
             </div>
 
-            <!-- Полоса прилета -->
-            <div class="form-group">
-              <label>Полоса прилета</label>
+            <div class="form-group"><label>Время вылета</label><input type="datetime-local" v-model="form.departure_time" required /></div>
+            <div class="form-group"><label>Время прилета</label><input type="datetime-local" v-model="form.arrival_time" required /></div>
+
+            <div class="form-group" v-if="form.flight_type === 'departure'">
+              <label>Полоса вылета (Пулково)</label>
+              <select v-model="form.departure_runway">
+                <option :value="null">Не назначена</option>
+                <option v-for="r in lookups.runways.filter(rw => rw.airport === ledId)" :key="r.id" :value="r.id" :style="r.status_text !== 'СВОБОДНА' ? 'color: #c62828; font-weight: bold;' : ''">
+                  {{ r.name }} — {{ r.status_text }}
+                </option>
+              </select>
+            </div>
+
+            <div class="form-group" v-if="form.flight_type === 'arrival'">
+              <label>Полоса прилета (Пулково)</label>
               <select v-model="form.arrival_runway">
                 <option :value="null">Не назначена</option>
-                <option 
-                  v-for="r in lookups.runways.filter(rw => rw.airport === form.destination)" 
-                  :key="r.id" :value="r.id"
-                  :disabled="r.status_text !== 'СВОБОДНА'"
-                  :style="r.status_text !== 'СВОБОДНА' ? 'color: #c62828;' : 'color: #1e293b;'"
-                >
-                  {{ r.name }} [{{ r.status_text }}]
+                <option v-for="r in lookups.runways.filter(rw => rw.airport === ledId)" :key="r.id" :value="r.id" :style="r.status_text !== 'СВОБОДНА' ? 'color: #c62828; font-weight: bold;' : ''">
+                  {{ r.name }} — {{ r.status_text }}
                 </option>
               </select>
             </div>
@@ -173,10 +186,7 @@
             <div class="form-group full-width"><label>Статус рейса</label><select v-model="form.status" required><option value="scheduled">По расписанию</option><option value="delayed">Задержан</option><option value="boarding">Посадка</option><option value="departed">Вылетел</option><option value="arrived">Прибыл</option><option value="cancelled">Отменен</option></select></div>
           </div>
 
-          <!-- Блок вывода ошибки валидации -->
-          <div v-if="modalError" class="validation-error">
-            ⚠️ {{ modalError }}
-          </div>
+          <div v-if="modalError" class="validation-error">⚠️ {{ modalError }}</div>
 
           <div class="modal-actions">
             <button type="button" class="cancel-btn" @click="closeModal">Отмена</button>
@@ -193,18 +203,27 @@ import { ref, onMounted, reactive, computed } from 'vue';
 import { useRouter } from 'vue-router';
 import axios from 'axios';
 
-const flights = ref([]);
+const flights = ref([]); // Рейсы для таблицы (с учетом фильтров)
+const allFlights = ref([]); // ВСЕ рейсы (для карточек статистики)
 const loading = ref(true);
 const router = useRouter();
 const token = localStorage.getItem('access_token');
 const apiUrl = 'http://127.0.0.1:8080/api';
 
+const ledId = ref(null); 
+
 const filters = reactive({ search: '', status: '', airline: '', ordering: 'departure_time' });
 let debounceTimer = null;
 
+// СТАТИСТИКА ТЕПЕРЬ СЧИТАЕТСЯ ПО ВСЕМ РЕЙСАМ (allFlights)
 const stats = computed(() => {
-  const list = flights.value;
-  return { total: list.length, scheduled: list.filter(f => f.status === 'scheduled').length, delayed: list.filter(f => f.status === 'delayed').length, cancelled: list.filter(f => f.status === 'cancelled').length };
+  const list = allFlights.value; 
+  return { 
+    total: list.length, 
+    scheduled: list.filter(f => f.status === 'scheduled').length, 
+    delayed: list.filter(f => f.status === 'delayed').length, 
+    cancelled: list.filter(f => f.status === 'cancelled').length 
+  };
 });
 
 const lookups = reactive({ airlines: [], aircrafts: [], airports: [], runways: [] });
@@ -214,30 +233,50 @@ const saving = ref(false);
 const currentId = ref(null);
 const modalError = ref('');
 
-const form = reactive({ flight_number: '', airline: '', aircraft: '', origin: '', destination: '', departure_time: '', arrival_time: '', status: 'scheduled', gate: '', departure_runway: null, arrival_runway: null });
+const form = reactive({ 
+  flight_number: '', airline: '', aircraft: '', 
+  flight_type: 'departure', other_airport: '', 
+  departure_time: '', arrival_time: '', status: 'scheduled', gate: '', 
+  departure_runway: null, arrival_runway: null 
+});
 
 const fetchData = async () => {
   try {
     loading.value = true;
     const config = { headers: { Authorization: `Bearer ${token}` } };
     
-    let flightUrl = `${apiUrl}/flights/?`;
-    if (filters.search) flightUrl += `search=${filters.search}&`;
-    if (filters.status) flightUrl += `status=${filters.status}&`;
-    if (filters.airline) flightUrl += `airline=${filters.airline}&`;
-    if (filters.ordering) flightUrl += `ordering=${filters.ordering}&`;
+    // 1. Ссылка для ВСЕХ рейсов (без фильтров) - для карточек
+    const allFlightsUrl = `${apiUrl}/flights/`;
 
-    const [fRes, aRes, acRes, apRes, rRes] = await Promise.all([
-      axios.get(flightUrl, config), 
+    // 2. Ссылка для ОТФИЛЬТРОВАННЫХ рейсов - для таблицы
+    let tableFlightsUrl = `${apiUrl}/flights/?`;
+    if (filters.search) tableFlightsUrl += `search=${filters.search}&`;
+    if (filters.status) tableFlightsUrl += `status=${filters.status}&`;
+    if (filters.airline) tableFlightsUrl += `airline=${filters.airline}&`;
+    if (filters.ordering) tableFlightsUrl += `ordering=${filters.ordering}&`;
+
+    // Делаем все запросы параллельно
+    const [allRes, fRes, aRes, acRes, apRes, rRes] = await Promise.all([
+      axios.get(allFlightsUrl, config), 
+      axios.get(tableFlightsUrl, config), 
       axios.get(`${apiUrl}/airlines/`, config), 
       axios.get(`${apiUrl}/aircrafts/`, config), 
       axios.get(`${apiUrl}/airports/`, config), 
       axios.get(`${apiUrl}/runways/`, config)
     ]);
     
+    // Сохраняем данные
+    allFlights.value = allRes.data;
     flights.value = fRes.data.sort((a, b) => new Date(a.departure_time) - new Date(b.departure_time));
-    lookups.airlines = aRes.data; lookups.aircrafts = acRes.data; lookups.airports = apRes.data;
+    
+    lookups.airlines = aRes.data; 
+    lookups.aircrafts = acRes.data; 
+    lookups.airports = apRes.data;
     lookups.runways = rRes.data; 
+
+    const led = lookups.airports.find(a => a.iata_code === 'LED');
+    if (led) ledId.value = led.id;
+
   } catch (err) { 
     if (err.response?.status === 401) router.push('/'); 
   } finally { 
@@ -257,13 +296,27 @@ const setFilter = (status) => {
 
 const openCreateModal = () => { 
   isEditing.value = false; currentId.value = null; modalError.value = '';
-  Object.assign(form, { flight_number: '', airline: '', aircraft: '', origin: '', destination: '', departure_time: '', arrival_time: '', status: 'scheduled', gate: '', departure_runway: null, arrival_runway: null }); 
+  Object.assign(form, { 
+    flight_number: '', airline: '', aircraft: '', flight_type: 'departure', other_airport: '',
+    departure_time: '', arrival_time: '', status: 'scheduled', gate: '', departure_runway: null, arrival_runway: null 
+  }); 
   showModal.value = true; 
 };
 
 const openEditModal = (flight) => { 
   isEditing.value = true; currentId.value = flight.id; modalError.value = '';
-  Object.assign(form, { flight_number: flight.flight_number, airline: flight.airline, aircraft: flight.aircraft, origin: flight.origin, destination: flight.destination, departure_time: flight.departure_time.slice(0, 16), arrival_time: flight.arrival_time.slice(0, 16), status: flight.status, gate: flight.gate || '', departure_runway: flight.departure_runway, arrival_runway: flight.arrival_runway }); 
+  
+  const isDeparture = flight.origin === ledId.value;
+  const otherPort = isDeparture ? flight.destination : flight.origin;
+
+  Object.assign(form, { 
+    flight_number: flight.flight_number, airline: flight.airline, aircraft: flight.aircraft, 
+    flight_type: isDeparture ? 'departure' : 'arrival',
+    other_airport: otherPort,
+    departure_time: flight.departure_time.slice(0, 16), arrival_time: flight.arrival_time.slice(0, 16), 
+    status: flight.status, gate: flight.gate || '', 
+    departure_runway: flight.departure_runway, arrival_runway: flight.arrival_runway 
+  }); 
   showModal.value = true; 
 };
 
@@ -274,6 +327,18 @@ const saveFlight = async () => {
   modalError.value = '';
   
   const payload = { ...form };
+  
+  if (form.flight_type === 'departure') {
+    payload.origin = ledId.value;
+    payload.destination = form.other_airport;
+  } else {
+    payload.origin = form.other_airport;
+    payload.destination = ledId.value;
+  }
+
+  delete payload.flight_type;
+  delete payload.other_airport;
+
   if (payload.departure_time && payload.departure_time.length === 16) payload.departure_time += ':00';
   if (payload.arrival_time && payload.arrival_time.length === 16) payload.arrival_time += ':00';
 
@@ -287,9 +352,7 @@ const saveFlight = async () => {
     if (err.response && err.response.data) {
       const errors = err.response.data;
       let errorMessages = [];
-      for (const key in errors) {
-        errorMessages.push(errors[key].join(' '));
-      }
+      for (const key in errors) { errorMessages.push(errors[key].join(' ')); }
       modalError.value = errorMessages.join(' | ');
     } else {
       modalError.value = 'Произошла неизвестная ошибка при сохранении.';
@@ -314,11 +377,8 @@ onMounted(() => { fetchData(); });
 .avatar { width: 36px; height: 36px; background: #e67e22; color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; }
 .header-action { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px; }
 .subtitle { color: #64748b; margin: 5px 0 0 0; font-size: 15px; }
-
 .add-btn { background: #2b3a28; color: white; border: none; padding: 12px 24px; border-radius: 0; font-weight: 600; font-size: 14px; cursor: pointer; transition: 0.2s; text-transform: uppercase; letter-spacing: 0.5px;}
 .add-btn:hover { background: #1e2b1c; }
-
-/* СТИЛИ ДЛЯ СТАТИСТИКИ */
 .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 20px; margin-bottom: 30px; }
 .stat-card { background: white; padding: 20px 25px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; box-shadow: 0 1px 3px rgba(0,0,0,0.02); cursor: pointer; transition: all 0.2s ease; border-bottom: 3px solid transparent; }
 .stat-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
@@ -328,18 +388,16 @@ onMounted(() => { fetchData(); });
 .stat-card.scheduled .stat-value { color: #4a5d23; } 
 .stat-card.delayed .stat-value { color: #e67e22; } 
 .stat-card.cancelled .stat-value { color: #c62828; } 
-
-/* СТИЛИ ДЛЯ ФИЛЬТРОВ */
 .filters-panel { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; background: white; padding: 15px; border: 1px solid #e2e8f0; }
 .search-box { flex-grow: 1; min-width: 250px; display: flex; align-items: center; border: 1px solid #cbd5e1; padding: 0 15px; background: #f8fafc; }
 .search-box svg { margin-right: 10px; }
 .search-box input { border: none; background: transparent; padding: 12px 0; width: 100%; font-size: 14px; outline: none; font-family: 'Inter', sans-serif; }
 .filter-box select { padding: 12px 15px; border: 1px solid #cbd5e1; background: #f8fafc; font-size: 14px; outline: none; font-family: 'Inter', sans-serif; cursor: pointer; min-width: 180px; height: 100%; }
-
 .time-badge { font-weight: 700; color: #2b3a28; font-size: 15px; }
 .gate-badge { background: #f0f4f3; padding: 4px 10px; font-weight: 600; font-size: 13px; border: 1px solid #e2e8f0; color: #2b3a28;}
 .arrow { color: #cbd5e1; margin: 0 5px; font-size: 12px;}
-
+.flight-link { color: #e67e22; text-decoration: none; font-weight: 700; font-size: 16px; transition: 0.2s;}
+.flight-link:hover { color: #d35400; text-decoration: underline;}
 .status { padding: 6px 12px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid transparent;}
 .status.scheduled { background: #e9f5db; color: #4a5d23; border-color: #c2d6a4; }
 .status.delayed { background: #fff3e0; color: #e67e22; border-color: #ffcc80; }
@@ -347,14 +405,11 @@ onMounted(() => { fetchData(); });
 .status.departed { background: #e9f5db; color: #4a5d23; border-color: #c2d6a4;}
 .status.arrived { background: #2b3a28; color: white; }
 .status.cancelled { background: #ffebee; color: #c62828; border-color: #ef9a9a; }
-
 .actions-cell { display: flex; justify-content: flex-end; gap: 8px; }
 .action-btn { background: #ffffff; border: 1px solid #e2e8f0; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.2s ease; color: #64748b; }
 .action-btn svg { width: 14px; height: 14px; }
 .action-btn.edit:hover { background: #e9f5db; border-color: #4a5d23; color: #4a5d23; }
 .action-btn.delete:hover { background: #ffebee; border-color: #c62828; color: #c62828; }
-
-/* СТИЛИ ДЛЯ МОДАЛЬНОГО ОКНА */
 .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(43, 58, 40, 0.7); display: flex; justify-content: center; align-items: center; z-index: 1000; }
 .modal-content { background: white; width: 100%; max-width: 750px; box-shadow: 0 20px 40px rgba(0,0,0,0.2); max-height: 90vh; overflow-y: auto; }
 .modal-header { padding: 25px 30px; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
@@ -374,7 +429,5 @@ onMounted(() => { fetchData(); });
 .save-btn { background: #2b3a28; color: white; border: none; padding: 12px 30px; cursor: pointer; font-weight: 700; }
 .save-btn:hover { background: #1e2b1c; }
 .loading { text-align: center; padding: 50px; font-size: 16px; color: #64748b; }
-
-/* Стили для ошибки валидации */
 .validation-error { background: #fef2f2; color: #dc2626; border: 1px solid #f87171; padding: 12px 15px; margin-top: 20px; font-size: 14px; font-weight: 500; line-height: 1.4; }
 </style>

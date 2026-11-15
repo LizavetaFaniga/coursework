@@ -35,7 +35,7 @@
                   <span :class="rw.is_active ? 'status scheduled' : 'status cancelled'">{{ rw.is_active ? 'Свободна' : 'Закрыта' }}</span>
                 </td>
                 <td>
-                  <span v-if="rw.active_flight" class="status delayed">✈️ {{ rw.active_flight }}</span>
+                  <span v-if="rw.active_flight" class="status delayed"> {{ rw.active_flight }}</span>
                   <span v-else style="color: #94a3b8;">Нет рейсов</span>
                 </td>
               </tr>

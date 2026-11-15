@@ -1,7 +1,6 @@
 <template>
   <div class="login-layout">
     
-    <!-- Левая панель с брендингом и картинкой -->
     <div class="brand-panel">
       <div class="brand-content">
         <h1>AirPort<br>Management</h1>
@@ -9,7 +8,6 @@
       </div>
     </div>
 
-    <!-- Правая панель с формой -->
     <div class="form-panel">
       <div class="form-wrapper">
         <div class="form-header">
@@ -36,7 +34,7 @@
         </form>
         
         <div class="form-footer">
-          <p>© 2024 Система управления аэропортом</p>
+          <p>© 2026 Система управления аэропортом</p>
         </div>
       </div>
     </div>

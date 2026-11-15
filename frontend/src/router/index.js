@@ -5,12 +5,14 @@ import AirlinesView from '../views/AirlinesView.vue'
 import AirportsView from '../views/AirportsView.vue'
 import AircraftsView from '../views/AircraftsView.vue'
 import RunwaysView from '../views/RunwaysView.vue'
+import FlightDetailView from '../views/FlightDetailView.vue' // <-- Добавили импорт
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
   routes: [
     { path: '/', name: 'login', component: LoginView },
     { path: '/flights', name: 'flights', component: FlightsView, meta: { requiresAuth: true } },
+    { path: '/flights/:id', name: 'flight-detail', component: FlightDetailView, meta: { requiresAuth: true } }, // <-- Новый маршрут
     { path: '/airlines', name: 'airlines', component: AirlinesView, meta: { requiresAuth: true } },
     { path: '/airports', name: 'airports', component: AirportsView, meta: { requiresAuth: true } },
     { path: '/aircrafts', name: 'aircrafts', component: AircraftsView, meta: { requiresAuth: true } },

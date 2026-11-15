@@ -10,6 +10,8 @@ class AirlineSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class AircraftSerializer(serializers.ModelSerializer):
+    airline_name = serializers.CharField(source='airline.name', read_only=True)
+
     class Meta:
         model = Aircraft
         fields = '__all__'
@@ -22,50 +24,57 @@ class AirportSerializer(serializers.ModelSerializer):
 class RunwaySerializer(serializers.ModelSerializer):
     active_flight = serializers.SerializerMethodField()
     status_text = serializers.SerializerMethodField()
-    # Вот эта строчка у тебя потерялась, она отвечает за вывод "Москва (SVO)"
     airport_full_name = serializers.SerializerMethodField()
 
     class Meta:
         model = Runway
         fields = '__all__'
 
-    # 1. Метод для красивого названия аэропорта
     def get_airport_full_name(self, obj):
         return f"{obj.airport.city} ({obj.airport.iata_code})"
 
-    # 2. Метод для поиска активного рейса
-    def get_active_flight(self, obj):
-        current_time = timezone.now()
-        flight = Flight.objects.filter(
-            (Q(departure_runway=obj) | Q(arrival_runway=obj)),
-            departure_time__gte=current_time - timedelta(hours=1),
-            departure_time__lte=current_time + timedelta(hours=2)
-        ).first()
+    def get_current_flight(self, obj):
+        now = timezone.now()
+        time_window = timedelta(minutes=30) 
         
-        if flight:
-            return f"{flight.flight_number} ({flight.status})"
+        dep_flight = Flight.objects.filter(
+            departure_runway=obj,
+            departure_time__gte=now - time_window,
+            departure_time__lte=now + time_window
+        ).first()
+        if dep_flight:
+            return dep_flight
+
+        arr_flight = Flight.objects.filter(
+            arrival_runway=obj,
+            arrival_time__gte=now - time_window,
+            arrival_time__lte=now + time_window
+        ).first()
+        if arr_flight:
+            return arr_flight
+
         return None
 
-    # 3. Метод для статуса (Свободна / Занята / Закрыта)
+    def get_active_flight(self, obj):
+        flight = self.get_current_flight(obj)
+        if flight:
+            return f"{flight.flight_number} ({flight.get_status_display()})"
+        return None
+
     def get_status_text(self, obj):
         if not obj.is_active:
             return "ЗАКРЫТА"
             
-        # Вместо вызова метода сериализатора, мы напрямую обращаемся к базе данных
-        current_time = timezone.now()
-        active_flight = Flight.objects.filter(
-            (Q(departure_runway=obj) | Q(arrival_runway=obj)),
-            departure_time__gte=current_time - timedelta(hours=1),
-            departure_time__lte=current_time + timedelta(hours=2)
-        ).first()
-        
-        if active_flight:
-            return f"ЗАНЯТА: {active_flight.flight_number}"
+        flight = self.get_current_flight(obj)
+        if flight:
+            return f"ЗАНЯТА ({flight.flight_number})"
             
         return "СВОБОДНА"
 
+
 class FlightSerializer(serializers.ModelSerializer):
     airline_name = serializers.CharField(source='airline.name', read_only=True)
+    aircraft_model = serializers.CharField(source='aircraft.model', read_only=True) # <--- ДОБАВЛЕНО
     aircraft_tail = serializers.CharField(source='aircraft.tail_number', read_only=True)
     origin_city = serializers.CharField(source='origin.city', read_only=True)
     destination_city = serializers.CharField(source='destination.city', read_only=True)
@@ -85,24 +94,24 @@ class FlightSerializer(serializers.ModelSerializer):
         if dep_time and arr_time and arr_time <= dep_time:
             raise serializers.ValidationError({"arrival_time": "Время прилета должно быть позже времени вылета."})
 
+        time_window = timedelta(minutes=30)
+
         if dep_runway and dep_time:
-            time_window = timedelta(minutes=30)
             overlapping = Flight.objects.filter(
                 departure_runway=dep_runway,
                 departure_time__range=(dep_time - time_window, dep_time + time_window)
             ).exclude(id=self.instance.id if self.instance else None)
             
             if overlapping.exists():
-                raise serializers.ValidationError({"departure_runway": "Полоса вылета занята другим рейсом в это время."})
+                raise serializers.ValidationError({"departure_runway": "Полоса вылета занята другим рейсом (в пределах 30 минут)."})
 
         if arr_runway and arr_time:
-            time_window = timedelta(minutes=30)
             overlapping = Flight.objects.filter(
                 arrival_runway=arr_runway,
                 arrival_time__range=(arr_time - time_window, arr_time + time_window)
             ).exclude(id=self.instance.id if self.instance else None)
             
             if overlapping.exists():
-                raise serializers.ValidationError({"arrival_runway": "Полоса прилета занята другим рейсом в это время."})
+                raise serializers.ValidationError({"arrival_runway": "Полоса прилета занята другим рейсом (в пределах 30 минут)."})
 
         return data
